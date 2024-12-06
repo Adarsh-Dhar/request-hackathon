@@ -29,7 +29,7 @@ import { getDefaultConfig } from "@rainbow-me/rainbowkit";
 
 export const rainbowKitConfig = getDefaultConfig({
   appName: "Request Invoicing",
-  projectId: process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID as string,
+  projectId: process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID as string || "dummy",
   chains: [
     bsc,
     celo,
