@@ -2,47 +2,17 @@ import Head from "next/head";
 import { useAppContext } from "@/utils/context";
 import { Spinner } from "@/components/ui";
 import Button from "@/components/common/Button"
-import { Try } from "@/utils/try";
-import { useState } from "react";
+import Try from "@/utils/try";
 
 export default function ViewInvoicePage() {
-  const { requestNetwork, isDecryptionEnabled, address, walletClient } = useAppContext();
-  const [paymentStatus, setPaymentStatus] = useState("NOT_STARTED");
-  const [buttonLoadingMessage, setButtonLoadingMessage] = useState("");
-
-  const handleTry = async () => {
-    try {
-      console.log("trying");
-      const { createAndPayRequest } = await Try({
-        address,
-        walletClient,
-        setPaymentStatus,
-        setButtonLoadingMessage
-      });
-
-      await createAndPayRequest({
-        tier: "trial",
-        amount: 0,
-        requestParams: {
-          payeeIdentity: address,
-          payerIdentity: address,
-          signerIdentity: address,
-          expectedAmount: "0",
-          paymentAddress: address,
-          reason: "Trial request",
-          currencyAddress: "0x0000000000000000000000000000000000000000" // Replace with actual token address
-        }
-      });
-    } catch (error) {
-      console.error("Error:", error);
-    }
-  };
+  const { requestNetwork, isDecryptionEnabled } = useAppContext();
 
   return (
     <>
       <Head>
         <title>View Invoice - Request Invoicing</title>
       </Head>
+      <Try />
       <div className="container m-auto w-[100%]">
         {!requestNetwork ? (
           <Spinner />
@@ -52,11 +22,9 @@ export default function ViewInvoicePage() {
             {/* Add your invoice viewing logic here */}
           </div>
         )}
-        <Button 
-          text={buttonLoadingMessage || "Trial"} 
-          onClick={handleTry}
-          disabled={paymentStatus === "PENDING"}
-        />
+        <Button text="Trial" onClick={async () => {
+            console.log("trying")
+        }} />
       </div>
     </>
   );
