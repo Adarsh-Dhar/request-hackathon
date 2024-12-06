@@ -65,7 +65,7 @@ export const Provider = ({ children }: { children: ReactNode }) => {
           {
             baseURL:
               process.env.NEXT_PUBLIC_REQUEST_NODE ||
-              'https://gnosis.gateway.request.network/',
+              'https://sepolia.gateway.request.network/',
             headers: {}
           },
         );
@@ -88,7 +88,7 @@ export const Provider = ({ children }: { children: ReactNode }) => {
         nodeConnectionConfig: {
           baseURL:
             process.env.NEXT_PUBLIC_REQUEST_NODE ||
-            'https://gnosis.gateway.request.network/',
+            'https://sepolia.gateway.request.network/',
         },
         signatureProvider: web3SignatureProvider,
         httpConfig: {
