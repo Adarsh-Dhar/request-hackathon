@@ -29,6 +29,14 @@ const Navbar = () => {
       name: "Create an Invoice",
       href: "/create-invoice",
     },
+    {
+      name: "Sell Invoice",
+      href: "/sell-invoice",
+    },
+    {
+      name: "Buy Invoice",
+      href: "/buy-invoice",
+    },
   ];
 
   const supportLinks = [
@@ -90,16 +98,7 @@ const Navbar = () => {
         ))}
       </ul>
       <div className="hidden tablet:flex items-center gap-[16px] ml-auto ">
-        <Dropdown title="Need help?" items={supportLinks} />
-        <a
-          target="_blank"
-          rel="noreferrer noopener"
-          href="https://docs.request.network/building-blocks/templates"
-          className="flex items-center gap-[6px] bg-transparent text-green font-medium text-[14px] hover:text-dark-green"
-        >
-          Integrate in your app
-          <ArrowUpRight />
-        </a>
+       
         <ConnectButton />
         <Button
           text="Book a demo"
