@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { RequestNetwork, Types } from "@requestnetwork/request-client.js";
 import { useAccount } from "wagmi";
 import { Badge } from "@/components/ui/badge";
-import { useMarketplaceInteraction, InvoiceListingParams } from "@/interaction";
+import Interaction from "@/interaction";
 import { toast } from "react-hot-toast";
 
 export default function SellInvoice() {
@@ -16,8 +16,7 @@ export default function SellInvoice() {
 
   const { 
     createAndListInvoice, 
-    isLoading 
-  } = useMarketplaceInteraction();
+  } = Interaction();
 
   useEffect(() => {
     if (!userAddress) return;
@@ -45,38 +44,9 @@ export default function SellInvoice() {
     fetchRequests();
   }, [userAddress]);
 
-  const handleSellToMarket = async (request: Types.IRequestDataWithEvents | undefined) => {
-    if (!request) {
-      toast.error("Invalid request");
-      return;
-    }
-
-    try {
-      const invoiceParams: InvoiceListingParams = {
-        paymentChain: "Ethereum",
-        invoiceCurrency: request.currency || "0x0000000000000000000000000000000000000000",
-        settlementCurrency: "0x0000000000000000000000000000000000000000",
-        description: request.contentData?.reason || "Invoice from Request Network",
-        quantity: "1",
-        unitPrice: request.expectedAmount?.toString() || "0",
-        discount: "0",
-        tax: "0",
-        deadline: request.contentData?.dueDate 
-          ? Math.floor(new Date(request.contentData.dueDate).getTime() / 1000).toString()
-          : (Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60).toString(),
-        listingPrice: request.expectedAmount?.toString() || "0"
-      };
-
-      const result = await createAndListInvoice(invoiceParams);
-      
-      if (result) {
-        // Optionally update local state or refetch requests
-        toast.success("Invoice listed successfully!");
-      }
-    } catch (error) {
-      console.error("Failed to sell invoice to market:", error);
-      toast.error("Failed to list invoice");
-    }
+  const handleSellToMarket = async () => {
+    const result = await createAndListInvoice();
+    console.log("result", result)
   };
 
   const filteredRequests = requests?.filter((request) => {
@@ -154,15 +124,11 @@ export default function SellInvoice() {
                   </td>
                   <td className="border-b border-gray-200 py-2 px-4">
                     <button
-                      onClick={() => handleSellToMarket(request)}
-                      disabled={isLoading}
-                      className={`px-3 py-1 rounded-lg ${
-                        isLoading 
-                          ? "bg-gray-300 text-gray-500 cursor-not-allowed" 
-                          : "bg-blue-500 text-white hover:bg-blue-600"
-                      }`}
+                      onClick={async() => await handleSellToMarket()}
+                      
+                      
                     >
-                      {isLoading ? "Listing..." : "Sell to Market"}
+                      {"Sell to Market"}
                     </button>
                   </td>
                 </tr>
