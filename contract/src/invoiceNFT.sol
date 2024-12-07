@@ -7,8 +7,7 @@ import "../lib/openzeppelin-contracts/contracts/utils/Base64.sol";
 
 contract InvoiceNFT is ERC721URIStorage {
     struct InvoiceMetadata {
-        address from;
-        address to;
+        address owner;
         string paymentChain;
         address invoiceCurrency;
         address settlementCurrency;
@@ -36,7 +35,6 @@ contract InvoiceNFT is ERC721URIStorage {
 
     // Function to create an Invoice NFT
     function createInvoiceNFT(
-        address to,
         string memory paymentChain,
         address invoiceCurrency,
         address settlementCurrency,
@@ -52,8 +50,7 @@ contract InvoiceNFT is ERC721URIStorage {
 
         // Create invoice metadata
         InvoiceMetadata memory newInvoice = InvoiceMetadata({
-            from: msg.sender,
-            to: to,
+            owner: msg.sender,
             paymentChain: paymentChain,
             invoiceCurrency: invoiceCurrency,
             settlementCurrency: settlementCurrency,
@@ -109,10 +106,7 @@ contract InvoiceNFT is ERC721URIStorage {
                                 _addressToString(invoice.invoiceCurrency), // Changed to use invoiceCurrency
                                 '"},',
                                 '{"trait_type": "Issuer", "value": "', 
-                                _addressToString(invoice.from), // Changed to use from address
-                                '"},',
-                                '{"trait_type": "Recipient", "value": "', 
-                                _addressToString(invoice.to), // Changed to use to address
+                                _addressToString(invoice.owner), // Changed to use from address
                                 '"},',
                                 '{"trait_type": "Deadline", "value": "', 
                                 _toString(invoice.deadline), 

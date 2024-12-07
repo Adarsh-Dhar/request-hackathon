@@ -1,11 +1,11 @@
 "use client";
 
-import { currencies } from "../utils/currencies";
-import { RequestNetwork, Types } from "@requestnetwork/request-client.js";
 import { useEffect, useState } from "react";
+import { RequestNetwork, Types } from "@requestnetwork/request-client.js";
 import { useAccount } from "wagmi";
 import { Badge } from "@/components/ui/badge";
-import Interaction from "@/interaction";
+import { useMarketplaceInteraction, InvoiceListingParams } from "@/interaction";
+import { toast } from "react-hot-toast";
 
 export default function SellInvoice() {
   const { address: userAddress } = useAccount();
@@ -13,7 +13,11 @@ export default function SellInvoice() {
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
-  const { createAndListInvoice } = Interaction();
+
+  const { 
+    createAndListInvoice, 
+    isLoading 
+  } = useMarketplaceInteraction();
 
   useEffect(() => {
     if (!userAddress) return;
@@ -31,11 +35,10 @@ export default function SellInvoice() {
           value: userAddress,
         });
 
-        console.log("request payer", requests);
-
         setRequests(requests.map((request) => request.getData()));
       } catch (error) {
         console.error("Failed to fetch requests:", error);
+        toast.error("Failed to fetch invoices");
       }
     };
 
@@ -43,28 +46,36 @@ export default function SellInvoice() {
   }, [userAddress]);
 
   const handleSellToMarket = async (request: Types.IRequestDataWithEvents | undefined) => {
-    if (!request) return;
+    if (!request) {
+      toast.error("Invalid request");
+      return;
+    }
 
     try {
-      // Extract necessary data from request for createAndListInvoice
-      const to = request.payer?.value || ""; // Payer address
-      const paymentChain = "Ethereum"; // Default to Ethereum
-      const invoiceCurrency = request.currency || "0x0000000000000000000000000000000000000000"; // Default address if not specified
-      const settlementCurrency = "0x0000000000000000000000000000000000000000"; // Default address
-      const description = request.contentData?.reason || "Invoice from Request Network";
-      const quantity = "1";
-      const unitPrice = request.expectedAmount?.toString() || "0";
-      const discount = "0";
-      const tax = "0";
-      const deadline = request.contentData?.dueDate 
-        ? Math.floor(new Date(request.contentData.dueDate).getTime() / 1000).toString()
-        : (Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60).toString(); // 30 days from now if no due date
-      const listingPrice = request.expectedAmount?.toString() || "0";
+      const invoiceParams: InvoiceListingParams = {
+        paymentChain: "Ethereum",
+        invoiceCurrency: request.currency || "0x0000000000000000000000000000000000000000",
+        settlementCurrency: "0x0000000000000000000000000000000000000000",
+        description: request.contentData?.reason || "Invoice from Request Network",
+        quantity: "1",
+        unitPrice: request.expectedAmount?.toString() || "0",
+        discount: "0",
+        tax: "0",
+        deadline: request.contentData?.dueDate 
+          ? Math.floor(new Date(request.contentData.dueDate).getTime() / 1000).toString()
+          : (Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60).toString(),
+        listingPrice: request.expectedAmount?.toString() || "0"
+      };
 
-      await createAndListInvoice();
-
+      const result = await createAndListInvoice(invoiceParams);
+      
+      if (result) {
+        // Optionally update local state or refetch requests
+        toast.success("Invoice listed successfully!");
+      }
     } catch (error) {
       console.error("Failed to sell invoice to market:", error);
+      toast.error("Failed to list invoice");
     }
   };
 
@@ -114,7 +125,10 @@ export default function SellInvoice() {
             </thead>
             <tbody>
               {paginatedRequests?.map((request) => (
-                <tr key={request?.timestamp} className="odd:bg-white even:bg-gray-50 hover:bg-gray-100">
+                <tr 
+                  key={request?.timestamp} 
+                  className="odd:bg-white even:bg-gray-50 hover:bg-gray-100"
+                >
                   <td className="border-b border-gray-200 py-2 px-4">
                     {new Date(request?.timestamp! * 1000).toLocaleDateString()}
                   </td>
@@ -136,24 +150,19 @@ export default function SellInvoice() {
                     {request?.expectedAmount}
                   </td>
                   <td className="border-b border-gray-200 py-2 px-4">
-                    <Badge variant={calculateStatus(
-                      request?.state as string,
-                      BigInt(request?.expectedAmount as number),
-                      BigInt(request?.balance?.balance || 0)
-                    ) === "Paid" ? "default" : "secondary"}>
-                      {calculateStatus(
-                        request?.state as string,
-                        BigInt(request?.expectedAmount as number),
-                        BigInt(request?.balance?.balance || 0)
-                      )}
-                    </Badge>
+                   
                   </td>
                   <td className="border-b border-gray-200 py-2 px-4">
                     <button
                       onClick={() => handleSellToMarket(request)}
-                      className="px-3 py-1 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+                      disabled={isLoading}
+                      className={`px-3 py-1 rounded-lg ${
+                        isLoading 
+                          ? "bg-gray-300 text-gray-500 cursor-not-allowed" 
+                          : "bg-blue-500 text-white hover:bg-blue-600"
+                      }`}
                     >
-                      Sell to Market
+                      {isLoading ? "Listing..." : "Sell to Market"}
                     </button>
                   </td>
                 </tr>
@@ -161,54 +170,7 @@ export default function SellInvoice() {
             </tbody>
           </table>
         </div>
-
-        {totalPages > 1 && (
-          <div className="flex justify-center gap-2 mt-4">
-            <button
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-              className="px-3 py-1 rounded border disabled:opacity-50"
-            >
-              Previous
-            </button>
-            {Array.from({length: totalPages}, (_, i) => i + 1).map(page => (
-              <button
-                key={page}
-                onClick={() => setCurrentPage(page)}
-                className={`px-3 py-1 rounded border ${currentPage === page ? "bg-blue-500 text-white" : ""}`}
-              >
-                {page}
-              </button>
-            ))}
-            <button
-              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-              className="px-3 py-1 rounded border disabled:opacity-50"
-            >
-              Next
-            </button>
-          </div>
-        )}
       </div>
     </div>
   );
 }
-
-const calculateStatus = (
-  state: string,
-  expectedAmount: bigint,
-  balance: bigint
-) => {
-  if (balance >= expectedAmount) {
-    return "Paid";
-  }
-  if (state === Types.RequestLogic.STATE.ACCEPTED) {
-    return "Accepted";
-  } else if (state === Types.RequestLogic.STATE.CANCELED) {
-    return "Canceled";
-  } else if (state === Types.RequestLogic.STATE.CREATED) {
-    return "Created";
-  } else if (state === Types.RequestLogic.STATE.PENDING) {
-    return "Pending";
-  }
-};

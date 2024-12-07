@@ -75,7 +75,7 @@ contract InvoiceNFTMarketplace is Ownable, ReentrancyGuard {
 
     // Create and list an invoice NFT in one transaction
     function createAndListInvoice(
-        address to,
+        address owner,
         string memory paymentChain,
         address invoiceCurrency,
         address settlementCurrency,
@@ -87,9 +87,10 @@ contract InvoiceNFTMarketplace is Ownable, ReentrancyGuard {
         uint256 deadline,
         uint256 listingPrice
     ) external nonReentrant returns (uint256) {
+
+        require(owner == msg.sender, "you must own the invoice");
         // Create the invoice NFT
         uint256 tokenId = invoiceNFT.createInvoiceNFT(
-            to,
             paymentChain,
             invoiceCurrency,
             settlementCurrency,
@@ -117,32 +118,8 @@ contract InvoiceNFTMarketplace is Ownable, ReentrancyGuard {
         return tokenId;
     }
 
-    // List existing invoice NFT
-    function listInvoice(uint256 tokenId, uint256 listingPrice) external nonReentrant {
-        require(invoiceNFT.ownerOf(tokenId) == msg.sender, "Not the owner");
-        require(invoiceNFT.getApproved(tokenId) == address(this), "Marketplace not approved");
-        
-        listings[tokenId] = Listing({
-            seller: msg.sender,
-            tokenId: tokenId,
-            listingPrice: listingPrice,
-            isActive: true
-        });
-
-        emit ListingCreated(msg.sender, tokenId, listingPrice);
-    }
-
-    // Cancel listing
-    function cancelListing(uint256 tokenId) external nonReentrant {
-        Listing storage listing = listings[tokenId];
-        require(listing.seller == msg.sender, "Not the seller");
-        require(listing.isActive, "Listing not active");
-        
-        listing.isActive = false;
-        
-        emit ListingCanceled(tokenId, msg.sender);
-    }
-
+   
+   
     // Place bid
     function placeBid(uint256 tokenId) external payable nonReentrant {
         Listing storage listing = listings[tokenId];
@@ -201,16 +178,11 @@ contract InvoiceNFTMarketplace is Ownable, ReentrancyGuard {
         }
     }
 
-    // Update platform fee (only owner)
-    function updatePlatformFee(uint256 _platformFee) external onlyOwner {
-        require(_platformFee <= 100, "Fee too high"); // Max 10%
-        platformFee = _platformFee;
-    }
+   
 
     // Get invoice details
     function getInvoiceDetails(uint256 tokenId) external view returns (
-        address from,
-        address to,
+        address owner,
         string memory paymentChain,
         address invoiceCurrency,
         address settlementCurrency,

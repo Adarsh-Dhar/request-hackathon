@@ -1,7 +1,7 @@
 import { useEffect } from "react"
 import Interaction from "@/interaction";
 
-export const BuyListing = () => {
+const BuyListing = () => {
   const {getActiveListings} = Interaction()
   useEffect(() => {
     
@@ -20,4 +20,6 @@ export const BuyListing = () => {
     </div>
   )
 }
+
+export default BuyListing
  

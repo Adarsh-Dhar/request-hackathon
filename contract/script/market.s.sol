@@ -11,7 +11,7 @@ contract InvoiceNFTMarketplaceScript is Script {
     }
     function run() public {
         // Replace these with actual addresses of deployed contracts
-        address invoiceNFTAddress = address(0xb82d46669a849E1094bc5177988c09C0fa9c0D49);
+        address invoiceNFTAddress = address(0x424B268a73027Fc163A90aE40Ec3a61F926d06c5);
         
         // Start broadcasting transactions
         vm.startBroadcast();
