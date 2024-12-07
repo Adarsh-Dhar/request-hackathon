@@ -5,6 +5,7 @@ import { RequestNetwork, Types } from "@requestnetwork/request-client.js";
 import { useEffect, useState } from "react";
 import { useAccount } from "wagmi";
 import { Badge } from "@/components/ui/badge";
+import Interaction from "@/interaction";
 
 export default function SellInvoice() {
   const { address: userAddress } = useAccount();
@@ -12,6 +13,7 @@ export default function SellInvoice() {
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+  const { createAndListInvoice } = Interaction();
 
   useEffect(() => {
     if (!userAddress) return;
@@ -39,6 +41,32 @@ export default function SellInvoice() {
 
     fetchRequests();
   }, [userAddress]);
+
+  const handleSellToMarket = async (request: Types.IRequestDataWithEvents | undefined) => {
+    if (!request) return;
+
+    try {
+      // Extract necessary data from request for createAndListInvoice
+      const to = request.payer?.value || ""; // Payer address
+      const paymentChain = "Ethereum"; // Default to Ethereum
+      const invoiceCurrency = request.currency || "0x0000000000000000000000000000000000000000"; // Default address if not specified
+      const settlementCurrency = "0x0000000000000000000000000000000000000000"; // Default address
+      const description = request.contentData?.reason || "Invoice from Request Network";
+      const quantity = "1";
+      const unitPrice = request.expectedAmount?.toString() || "0";
+      const discount = "0";
+      const tax = "0";
+      const deadline = request.contentData?.dueDate 
+        ? Math.floor(new Date(request.contentData.dueDate).getTime() / 1000).toString()
+        : (Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60).toString(); // 30 days from now if no due date
+      const listingPrice = request.expectedAmount?.toString() || "0";
+
+      await createAndListInvoice();
+
+    } catch (error) {
+      console.error("Failed to sell invoice to market:", error);
+    }
+  };
 
   const filteredRequests = requests?.filter((request) => {
     const terms = searchQuery.toLowerCase();
@@ -122,7 +150,7 @@ export default function SellInvoice() {
                   </td>
                   <td className="border-b border-gray-200 py-2 px-4">
                     <button
-                      onClick={() => {/* TODO: Implement sell to market logic */}}
+                      onClick={() => handleSellToMarket(request)}
                       className="px-3 py-1 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
                     >
                       Sell to Market
