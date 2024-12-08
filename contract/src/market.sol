@@ -1,232 +1,126 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.0;
 
-import "../lib/openzeppelin-contracts/contracts/token/ERC721/IERC721.sol";
-import "../lib/openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
-import "../lib/openzeppelin-contracts/contracts/access/Ownable.sol";
-import "./invoiceNFT.sol";
-
-contract InvoiceNFTMarketplace is Ownable, ReentrancyGuard {
-    InvoiceNFT public immutable invoiceNFT;
-    uint256 public platformFee = 25; // 2.5% fee (based on 1000)
-
-    // Constructor to initialize the base class
-    constructor(address _invoiceNFTAddress) Ownable(msg.sender) ReentrancyGuard() {
-        require(_invoiceNFTAddress != address(0), "Invalid NFT contract address");
-        invoiceNFT = InvoiceNFT(_invoiceNFTAddress);
-    }
-    
-    enum BidStatus { Pending, Accepted, Rejected }
-    
-    struct Listing {
-        address seller;
-        uint256 tokenId;
-        uint256 listingPrice;
-        bool isActive;
-    }
-    
-    struct Bid {
-        address bidder;
+contract InvoiceBidding {
+    // Struct to represent an invoice
+    struct Invoice {
+        address owner;
+        string currency;
+        string description;
         uint256 amount;
-        uint256 timestamp;
-        BidStatus status;
-        uint256 tokenId;
+        uint256 deadline;
+        uint256 minPrice;
+        bool isActive;
+        address highestBidder;
+        uint256 highestBid;
     }
-    
-    // Mappings
-    mapping(uint256 => Listing) public listings;
-    mapping(uint256 => Bid[]) public bids;
-    
-    // Events
-    event InvoiceCreatedAndListed(
-        uint256 indexed tokenId,
-        address indexed creator,
-        uint256 listingPrice
+
+    // Array to store all invoices
+    Invoice[] public invoices;
+
+    // Mapping to track bids for each invoice
+    mapping(uint256 => mapping(address => uint256)) public bids;
+
+    // Event to log invoice creation
+    event InvoiceCreated(
+        uint256 indexed invoiceId, 
+        address indexed owner, 
+        string description, 
+        uint256 amount
     );
-    
-    event ListingCreated(
-        address indexed seller,
-        uint256 indexed tokenId,
-        uint256 listingPrice
-    );
-    
-    event ListingCanceled(
-        uint256 indexed tokenId,
-        address indexed seller
-    );
-    
+
+    // Event to log new bid
     event BidPlaced(
-        address indexed bidder,
-        uint256 indexed tokenId,
-        uint256 amount
-    );
-    
-    event BidAccepted(
-        uint256 indexed tokenId,
-        address indexed seller,
-        address indexed buyer,
-        uint256 amount
-    );
-    
-    event BidRejected(
-        uint256 indexed tokenId,
-        uint256 bidIndex
+        uint256 indexed invoiceId, 
+        address indexed bidder, 
+        uint256 bidAmount
     );
 
-    // Create and list an invoice NFT in one transaction
-    function createAndListInvoice(
-        address owner,
-        string memory paymentChain,
-        address invoiceCurrency,
-        address settlementCurrency,
-        string memory description,
-        uint256 quantity,
-        uint256 unitPrice,
-        uint256 discount,
-        uint256 tax,
-        uint256 deadline,
-        uint256 listingPrice
-    ) external nonReentrant returns (uint256) {
+    // Function to publish an invoice
+    function publishInvoice(
+        string memory _currency,
+        string memory _description,
+        uint256 _amount,
+        uint256 _deadline,
+        uint256 _minPrice
+    ) public returns (uint256) {
+        // Validate inputs
+        require(_amount > 0, "Amount must be greater than 0");
+        require(_deadline > block.timestamp, "Deadline must be in the future");
+        require(_minPrice > 0, "Minimum price must be greater than 0");
 
-        require(owner == msg.sender, "you must own the invoice");
-        // Create the invoice NFT
-        uint256 tokenId = invoiceNFT.createInvoiceNFT(
-            paymentChain,
-            invoiceCurrency,
-            settlementCurrency,
-            description,
-            quantity,
-            unitPrice,
-            discount,
-            tax,
-            deadline
-        );
-
-        // Approve marketplace to transfer the NFT
-        invoiceNFT.approve(address(this), tokenId);
-
-        // Create listing
-        listings[tokenId] = Listing({
-            seller: msg.sender,
-            tokenId: tokenId,
-            listingPrice: listingPrice,
-            isActive: true
+        // Create new invoice
+        Invoice memory newInvoice = Invoice({
+            owner: msg.sender,
+            currency: _currency,
+            description: _description,
+            amount: _amount,
+            deadline: _deadline,
+            minPrice: _minPrice,
+            isActive: true,
+            highestBidder: address(0),
+            highestBid: 0
         });
 
-        emit InvoiceCreatedAndListed(tokenId, msg.sender, listingPrice);
-        
-        return tokenId;
+        // Add invoice to array and get its ID
+        invoices.push(newInvoice);
+        uint256 invoiceId = invoices.length - 1;
+
+        // Emit event
+        emit InvoiceCreated(invoiceId, msg.sender, _description, _amount);
+
+        return invoiceId;
     }
 
-   
-   
-    // Place bid
-    function placeBid(uint256 tokenId) external payable nonReentrant {
-        Listing storage listing = listings[tokenId];
-        require(listing.isActive, "Listing not active");
-        require(msg.value >= listing.listingPrice, "Bid below listing price");
-        
-        bids[tokenId].push(Bid({
-            bidder: msg.sender,
-            amount: msg.value,
-            timestamp: block.timestamp,
-            status: BidStatus.Pending,
-            tokenId: tokenId
-        }));
+    // Function to place a bid on an invoice
+    function placeBid(uint256 _invoiceId) public payable {
+        // Validate invoice exists and is active
+        require(_invoiceId < invoices.length, "Invalid invoice ID");
+        Invoice storage invoice = invoices[_invoiceId];
+        require(invoice.isActive, "Invoice is not active");
+        require(block.timestamp <= invoice.deadline, "Bidding has ended");
 
-        emit BidPlaced(msg.sender, tokenId, msg.value);
-    }
+        // Validate bid amount
+        require(msg.value >= invoice.minPrice, "Bid must be at least minimum price");
+        require(msg.value > invoice.highestBid, "Bid must be higher than current highest bid");
 
-    // Accept or reject bid
-    function processBid(uint256 tokenId, uint256 bidIndex, bool accept) external nonReentrant {
-        Listing storage listing = listings[tokenId];
-        require(listing.seller == msg.sender, "Not the seller");
-        require(listing.isActive, "Listing not active");
-        require(bidIndex < bids[tokenId].length, "Invalid bid index");
-
-        Bid storage selectedBid = bids[tokenId][bidIndex];
-        require(selectedBid.status == BidStatus.Pending, "Bid not pending");
-
-        if (accept) {
-            // Calculate platform fee
-            uint256 fee = (selectedBid.amount * platformFee) / 1000;
-            uint256 sellerAmount = selectedBid.amount - fee;
-
-            // Transfer NFT to buyer
-            invoiceNFT.safeTransferFrom(listing.seller, selectedBid.bidder, tokenId);
-            
-            // Transfer funds
-            (bool feeSuccess, ) = payable(owner()).call{value: fee}("");
-            require(feeSuccess, "Fee transfer failed");
-            
-            (bool sellerSuccess, ) = payable(listing.seller).call{value: sellerAmount}("");
-            require(sellerSuccess, "Seller transfer failed");
-
-            // Update status
-            selectedBid.status = BidStatus.Accepted;
-            listing.isActive = false;
-
-            emit BidAccepted(tokenId, listing.seller, selectedBid.bidder, selectedBid.amount);
-        } else {
-            // Reject bid and refund bidder
-            selectedBid.status = BidStatus.Rejected;
-            
-            (bool success, ) = payable(selectedBid.bidder).call{value: selectedBid.amount}("");
-            require(success, "Refund failed");
-
-            emit BidRejected(tokenId, bidIndex);
+        // Refund previous highest bidder if exists
+        if (invoice.highestBidder != address(0)) {
+            payable(invoice.highestBidder).transfer(invoice.highestBid);
         }
+
+        // Update invoice with new highest bid
+        invoice.highestBidder = msg.sender;
+        invoice.highestBid = msg.value;
+
+        // Store individual bid
+        bids[_invoiceId][msg.sender] = msg.value;
+
+        // Emit event
+        emit BidPlaced(_invoiceId, msg.sender, msg.value);
     }
 
-   
-
-    // Get invoice details
-    function getInvoiceDetails(uint256 tokenId) external view returns (
-        address owner,
-        string memory paymentChain,
-        address invoiceCurrency,
-        address settlementCurrency,
-        string memory description,
-        uint256 quantity,
-        uint256 unitPrice,
-        uint256 discount,
-        uint256 tax,
-        uint256 amount,
-        bool isPaid,
-        uint256 deadline
-    ) {
-        return invoiceNFT.invoices(tokenId);
+    // Function to get all invoices
+    function getAllInvoices() public view returns (Invoice[] memory) {
+        return invoices;
     }
 
-    // Get all active listings
-    function getActiveListings() external view returns (Listing[] memory) {
-        uint256 activeCount = 0;
-        uint256 totalSupply = 1;
+    // Function to get total number of invoices
+    function getInvoiceCount() public view returns (uint256) {
+        return invoices.length;
+    }
+
+    // Function to close an invoice (only owner can do this)
+    function closeInvoice(uint256 _invoiceId) public {
+        require(_invoiceId < invoices.length, "Invalid invoice ID");
+        Invoice storage invoice = invoices[_invoiceId];
+        require(msg.sender == invoice.owner, "Only invoice owner can close");
         
-        // Count active listings
-        for (uint256 i = 1; i <= totalSupply; i++) {
-            if (listings[i].isActive) {
-                activeCount++;
-            }
+        invoice.isActive = false;
+
+        // Transfer highest bid to invoice owner if a bid was made
+        if (invoice.highestBidder != address(0)) {
+            payable(invoice.owner).transfer(invoice.highestBid);
         }
-        
-        // Create result array
-        Listing[] memory activeListings = new Listing[](activeCount);
-        uint256 currentIndex = 0;
-        
-        // Populate result array
-        for (uint256 i = 1; i <= totalSupply; i++) {
-            if (listings[i].isActive) {
-                activeListings[currentIndex] = listings[i];
-                currentIndex++;
-            }
-        }
-        
-        return activeListings;
-    }
-
-    // Get bids for a specific token
-    function getBidsForToken(uint256 tokenId) external view returns (Bid[] memory) {
-        return bids[tokenId];
     }
 }
